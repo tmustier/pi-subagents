@@ -1582,6 +1582,7 @@ Drive the failing test first.
 		const ctx = {
 			cwd: tempDir,
 			modelRegistry: {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => [
 					{ provider: "openai", id: "gpt-5-mini" },
 					{ provider: "anthropic", id: "claude-sonnet-4" },
@@ -1606,7 +1607,7 @@ Drive the failing test first.
 	it("resolves the advisor builtin alias in a filtered model mapping", () => {
 		const result = handleManagementAction("models", { agent: "advisor" }, {
 			cwd: tempDir,
-			modelRegistry: { getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
+			modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
 			model: { provider: "openai", id: "gpt-5-mini" },
 		});
 		const text = readText(result);
@@ -1656,7 +1657,7 @@ Drive the failing test first.
 
 		const ctx = {
 			cwd: tempDir,
-			modelRegistry: { getAvailable: () => [
+			modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [
 				{ provider: "openai", id: "gpt-5-mini" },
 				{ provider: "anthropic", id: "claude-sonnet-4" },
 			] },
@@ -1689,6 +1690,7 @@ Drive the failing test first.
 		const ctx = {
 			cwd: tempDir,
 			modelRegistry: {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => [
 					{ provider: "openai", id: "gpt-5-mini" },
 					{ provider: "anthropic", id: "claude-sonnet-4" },
@@ -1712,7 +1714,7 @@ Drive the failing test first.
 	it("rejects unknown agents for runtime model mappings", () => {
 		const result = handleManagementAction("models", { agent: "not-a-builtin" }, {
 			cwd: tempDir,
-			modelRegistry: { getAvailable: () => [] },
+			modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [] },
 		});
 
 		assert.equal(result.isError, true);

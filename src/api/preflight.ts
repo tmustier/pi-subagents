@@ -71,6 +71,8 @@ export interface SubagentLaunchContractInput {
 	/** Scoped-model snapshot (`provider/id` strings); drives the `scoped` allow token. Omitting it degrades `scoped` to `inherit`, so callers comparing preflight with execution must pass the session snapshot. */
 	scopedModelIds?: readonly string[];
 	availableModels?: ReadonlyArray<AvailableModelInfo | { provider: string; id: string; fullId?: string; reasoning?: boolean }>;
+	/** Provider names from ModelRegistry.getAll(), including unavailable custom providers. Without this snapshot, only availableModels providers are recognized. */
+	registeredProviders?: readonly string[];
 	preferredProvider?: string;
 	skill?: string | string[] | boolean;
 	output?: string | boolean;
@@ -376,6 +378,7 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 	const primaryModel = externalRunner
 		? undefined
 		: resolveEffectiveSubagentModel(input.model, agent.model, input.parentModel, availableModels, preferredProvider, {
+			registeredProviders: input.registeredProviders,
 			scope: modelScopes,
 			source: modelOrigin === "explicit" ? "explicit" : "inherited",
 		});
@@ -386,6 +389,7 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 		input.inheritedThinkingCeiling,
 	);
 	const model = externalRunner ? undefined : applyThinkingSuffix(resolveModelSelection(primaryModel, availableModels, preferredProvider, {
+			registeredProviders: input.registeredProviders,
 			scope: modelScopes,
 			primaryModelFromParent: modelOrigin === "inherited" || inheritsParentModel(input.model, agent.model, input.parentModel),
 			origin: modelOrigin,
@@ -445,6 +449,9 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 	if (!sessionDir) diagnostics.push({ code: "host_required", severity: "host-required", message: "No sessionRoot/sessionDir was supplied; exact child session paths require the Pi host session-root policy." });
 	if (!externalRunner && input.availableModels === undefined && (input.model || agent.model || input.parentModel)) {
 		diagnostics.push({ code: "host_required", severity: "host-required", message: "No availableModels snapshot was supplied; model resolution may differ from the active Pi host registry." });
+	}
+	if (!externalRunner && input.registeredProviders === undefined && (input.model || agent.model)) {
+		diagnostics.push({ code: "host_required", severity: "host-required", message: "No registeredProviders snapshot was supplied; provider prefixes absent from availableModels cannot be distinguished from owner/name model IDs." });
 	}
 	if (resolvedSkills.missing.length > 0) {
 		return { ok: false, code: "missing_skill", message: `Missing skills: ${resolvedSkills.missing.join(", ")}`, diagnostics };

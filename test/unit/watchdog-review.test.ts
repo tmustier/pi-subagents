@@ -77,6 +77,7 @@ function createCtx(input: {
 		sessionManager: { getSessionId: () => "watchdog-review-session" },
 		getSystemPrompt: () => "Parent system prompt",
 		modelRegistry: {
+			getAll: () => allModels,
 			getAvailable: () => allModels.filter((entry) => authenticated.has(`${entry.provider}/${entry.id}`)),
 			find: (provider: string, id: string) => allModels.find((entry) => entry.provider === provider && entry.id === id),
 			hasConfiguredAuth: (entry: Model<any>) => authenticated.has(`${entry.provider}/${entry.id}`),

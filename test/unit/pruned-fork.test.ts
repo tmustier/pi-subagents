@@ -60,6 +60,7 @@ describe("pruned fork sessions", () => {
 			const controller = new AbortController();
 			const calls: RegistryCall[] = [];
 			const modelRegistry = {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => [model],
 				find: (provider: string, id: string) => provider === model.provider && id === model.id ? model : undefined,
 				streamSimple(streamModel: RegistryStreamArgs[0], context: RegistryStreamArgs[1], options?: RegistryStreamArgs[2]) {

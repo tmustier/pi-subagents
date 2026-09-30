@@ -250,6 +250,7 @@ describe("runtime agent registration", () => {
 			const ctx = {
 				cwd: tempProject,
 				modelRegistry: {
+					getAll() { return this.getAvailable(); },
 					getAvailable: () => [
 						{ provider: "openai", id: "gpt-5-mini" },
 						{ provider: "anthropic", id: "claude-sonnet-4" },
@@ -377,7 +378,7 @@ describe("runtime agent registration", () => {
 		try {
 			const ctx = {
 				cwd: tempProject,
-				modelRegistry: { getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
+				modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
 				model: { provider: "anthropic", id: "claude-sonnet-4" },
 				runtimeAgentOwner: pi,
 			};
@@ -409,7 +410,7 @@ describe("runtime agent registration", () => {
 		try {
 			const managed = handleManagementAction("models", { agent: "runtime-provider-helper" }, {
 				cwd: tempProject,
-				modelRegistry: { getAvailable: () => [{ provider: "anthropic", id: "claude-sonnet-4" }] },
+				modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "anthropic", id: "claude-sonnet-4" }] },
 				model: { provider: "anthropic", id: "claude-sonnet-4" },
 				runtimeAgentOwner: pi,
 			});

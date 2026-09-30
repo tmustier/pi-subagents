@@ -202,6 +202,7 @@ interface AsyncChainParams {
 	unknownAgentDiagnosticContext?: UnknownAgentDiagnosticContext;
 	ctx: AsyncExecutionContext;
 	availableModels?: AvailableModelInfo[];
+	registeredProviders?: readonly string[];
 	cwd?: string;
 	maxOutput?: MaxOutputConfig;
 	machine?: string;
@@ -292,6 +293,7 @@ interface AsyncSingleParams {
 	fast?: boolean;
 	thinkingOverride?: AgentConfig["thinking"];
 	availableModels?: AvailableModelInfo[];
+	registeredProviders?: readonly string[];
 	maxSubagentDepth: number;
 	waitToolEnabled?: boolean;
 	waitToolDefaultTimeoutMs?: number;
@@ -356,6 +358,7 @@ export interface AsyncRunnerStepBuildParams {
 	unknownAgentDiagnosticContext?: UnknownAgentDiagnosticContext;
 	ctx: AsyncExecutionContext;
 	availableModels?: AvailableModelInfo[];
+	registeredProviders?: readonly string[];
 	cwd?: string;
 	machine?: string;
 	machineCwd?: string;
@@ -1064,7 +1067,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			ctx.currentModel,
 			availableModels,
 			a.modelProvider ?? ctx.currentModelProvider,
-			{ scope: modelScopes, source: modelOrigin === "explicit" ? "explicit" : "inherited" },
+			{ registeredProviders: params.registeredProviders, scope: modelScopes, source: modelOrigin === "explicit" ? "explicit" : "inherited" },
 		);
 		const thinkingOverride = flatIndex === undefined ? undefined : thinkingOverridesByFlatIndex?.[flatIndex];
 		const effectiveThinking = externalRunner ? undefined : thinkingOverride ?? a.thinking;
@@ -1089,6 +1092,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 		if (!externalRunner) {
 			try {
 				const modelEvidence = resolveModelSelection(primaryModel, availableModels, a.modelProvider ?? ctx.currentModelProvider, {
+					registeredProviders: params.registeredProviders,
 					scope: modelScopes,
 					primaryModelFromParent,
 					origin: modelOrigin,
@@ -1402,6 +1406,7 @@ export function executeAsyncChain(
 		unknownAgentDiagnosticContext: params.unknownAgentDiagnosticContext,
 		ctx,
 		availableModels: params.availableModels,
+		registeredProviders: params.registeredProviders,
 		cwd,
 		chainSkills: params.chainSkills,
 		machine: params.machine,
@@ -1845,7 +1850,7 @@ export function executeAsyncSingle(
 				ctx.currentModel,
 				availableModels,
 				ctx.currentModelProvider,
-				{ scope: modelScopes, source: modelOrigin === "explicit" ? "explicit" : "inherited" },
+				{ registeredProviders: params.registeredProviders, scope: modelScopes, source: modelOrigin === "explicit" ? "explicit" : "inherited" },
 			);
 	} catch (error) {
 		return formatAsyncStartError("single", error instanceof Error ? error.message : String(error));
@@ -1891,6 +1896,7 @@ export function executeAsyncSingle(
 	if (!externalRunner) {
 		try {
 			const modelEvidence = resolveModelSelection(primaryModel, availableModels, agentConfig.modelProvider ?? ctx.currentModelProvider, {
+				registeredProviders: params.registeredProviders,
 				scope: modelScopes,
 				primaryModelFromParent: modelOrigin === "inherited",
 				origin: modelOrigin,

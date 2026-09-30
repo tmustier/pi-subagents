@@ -352,6 +352,33 @@ Project prompt.
 		);
 	});
 
+	it("uses the full provider snapshot to reject unavailable qualified models", async () => {
+		const cwd = path.join(tempDir, "provider-collision");
+		fs.mkdirSync(cwd, { recursive: true });
+		writeAgent(path.join(cwd, ".pi", "agents", "worker.md"), "---\nname: worker\ndescription: Provider collision fixture\nmodel: openai/gpt-6.1-sol:high\n---\nWorker.\n");
+		const input = {
+			agent: "worker", cwd,
+			availableModels: [{ provider: "openrouter", id: "openai/gpt-6.1-sol" }],
+			registeredProviders: ["openai", "openrouter"],
+		};
+		await assert.rejects(resolveSubagentLaunchContract(input), /Unknown subagent model 'openai\/gpt-6.1-sol:high'/);
+		await assert.rejects(resolveSubagentLaunchContract({ ...input, model: "openai/gpt-6.1-sol:high" }), /Unknown subagent model/);
+	});
+
+	it("reports limited provider recognition when standalone callers omit the full snapshot", async () => {
+		const cwd = path.join(tempDir, "provider-snapshot-missing");
+		fs.mkdirSync(cwd, { recursive: true });
+		writeAgent(path.join(cwd, ".pi", "agents", "worker.md"), "---\nname: worker\ndescription: Provider snapshot fixture\n---\nWorker.\n");
+		const result = await resolveSubagentLaunchContract({
+			agent: "worker", cwd, model: "thinkingmachines/Inkling",
+			availableModels: [{ provider: "huggingface", id: "thinkingmachines/Inkling" }],
+		});
+		assert.equal(result.ok, true);
+		if (!result.ok) return;
+		assert.equal(result.contract.model, "huggingface/thinkingmachines/Inkling");
+		assert.ok(result.contract.diagnostics.some((entry) => entry.code === "host_required" && entry.message.includes("No registeredProviders snapshot")));
+	});
+
 	it("rejects an explicit per-call unknown model before launch", async () => {
 		const cwd = path.join(tempDir, "repo-explicit-unknown-model");
 		fs.mkdirSync(cwd, { recursive: true });

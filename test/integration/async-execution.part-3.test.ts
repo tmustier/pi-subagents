@@ -1351,7 +1351,7 @@ export default function() {
 			fs.writeFileSync(sessionFile, `${header}\n`);
 			const ctx = {
 				...makeMinimalCtx(tempDir),
-				modelRegistry: { getAvailable: () => [{ provider: "databricks-bedrock", id: "ias-claude-opus-5" }] },
+				modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "databricks-bedrock", id: "ias-claude-opus-5" }] },
 				sessionManager: {
 					getSessionId: () => `alias-session-${index}`,
 					getSessionFile: () => parentSessionFile,
@@ -1682,7 +1682,7 @@ syncBuiltinESMExports();
 		const ctx = {
 			...makeMinimalCtx(tempDir),
 			model: { provider: "gateway", id: "parent-model" },
-			modelRegistry: { getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
+			modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "openai", id: "gpt-5-mini" }] },
 			sessionManager: {
 				getSessionId: () => "session-123",
 				getSessionFile: () => parentSessionFile,
@@ -1765,7 +1765,7 @@ syncBuiltinESMExports();
 			{ action: "resume", id: sourceId, message: "Continue" },
 			new AbortController().signal,
 			undefined,
-			{ ...makeMinimalCtx(tempDir), modelRegistry: { getAvailable: () => [luna] } },
+			{ ...makeMinimalCtx(tempDir), modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [luna] } },
 		) as AsyncExecutionResult;
 		assert.ok(!result.isError, result.content[0]?.text);
 		assert.ok(result.details.asyncId);

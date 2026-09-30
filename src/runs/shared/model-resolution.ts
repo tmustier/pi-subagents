@@ -96,24 +96,33 @@ function stripTrailingDateStamp(segment: string): string {
 	return segment;
 }
 
-function isRegisteredProvider(provider: string, availableModels: AvailableModelInfo[]): boolean {
+/** Read provider identity without refreshing or consulting authentication-filtered candidates. */
+export function registeredProvidersFromRegistry(registry: { getAll(): ReadonlyArray<{ provider: string }> }): string[] {
+	return [...new Set(registry.getAll().map((model) => model.provider))];
+}
+
+function isRegisteredProvider(provider: string, availableModels: AvailableModelInfo[], registeredProviders?: readonly string[]): boolean {
 	const normalized = normalizeModelSegment(provider);
-	return availableModels.some((entry) => normalizeModelSegment(entry.provider) === normalized);
+	return registeredProviders?.some((entry) => normalizeModelSegment(entry) === normalized) === true
+		|| availableModels.some((entry) => normalizeModelSegment(entry.provider) === normalized);
 }
 
 /**
  * Split `provider/id` only when the first path segment is a registered provider.
  * Hugging Face-style `owner/name` ids therefore stay intact unless `owner` is
- * itself a provider in the active registry. `:` and `.` keep the same rule.
+ * itself a provider in the full registry, even if no model from it is available.
+ * Without that snapshot, only providers represented by available models are known.
+ * `:` and `.` keep the same rule.
  */
 function splitQualifiedModelQuery(
 	baseModel: string,
 	availableModels: AvailableModelInfo[],
+	registeredProviders?: readonly string[],
 ): { queryProvider?: string; queryIdRaw: string } {
 	const slashIdx = baseModel.indexOf("/");
 	if (slashIdx !== -1) {
 		const providerPart = baseModel.slice(0, slashIdx);
-		if (isRegisteredProvider(providerPart, availableModels)) {
+		if (isRegisteredProvider(providerPart, availableModels, registeredProviders)) {
 			return { queryProvider: normalizeModelSegment(providerPart), queryIdRaw: baseModel.slice(slashIdx + 1) };
 		}
 		return { queryIdRaw: baseModel };
@@ -123,7 +132,7 @@ function splitQualifiedModelQuery(
 		const separatorIdx = baseModel.indexOf(separator);
 		if (separatorIdx <= 0) continue;
 		const providerPart = baseModel.slice(0, separatorIdx);
-		if (!isRegisteredProvider(providerPart, availableModels)) continue;
+		if (!isRegisteredProvider(providerPart, availableModels, registeredProviders)) continue;
 		return { queryProvider: normalizeModelSegment(providerPart), queryIdRaw: baseModel.slice(separatorIdx + 1) };
 	}
 	return { queryIdRaw: baseModel };
@@ -147,17 +156,18 @@ function resolveBaseModelCandidate(
 	baseModel: string,
 	availableModels: AvailableModelInfo[],
 	preferredProvider?: string,
+	registeredProviders?: readonly string[],
 ): string | undefined {
 	const exact = availableModels.find((entry) => entry.fullId === baseModel);
 	if (exact) return exact.fullId;
 
-	const { queryProvider } = splitQualifiedModelQuery(baseModel, availableModels);
+	const { queryProvider } = splitQualifiedModelQuery(baseModel, availableModels, registeredProviders);
 	if (queryProvider === undefined) {
 		const exactId = resolveExactIdMatches(baseModel, availableModels, preferredProvider);
 		if (exactId) return exactId;
 	}
 
-	const fuzzy = fuzzyResolveModel(baseModel, availableModels, preferredProvider);
+	const fuzzy = fuzzyResolveModel(baseModel, availableModels, preferredProvider, registeredProviders);
 	if (fuzzy || queryProvider === undefined) return fuzzy;
 	// Some catalogs (OpenRouter's `openrouter/auto-beta`) repeat the provider inside the id.
 	const queryId = normalizeModelSegment(baseModel);
@@ -180,8 +190,9 @@ export function fuzzyResolveModel(
 	baseModel: string,
 	availableModels: AvailableModelInfo[],
 	preferredProvider?: string,
+	registeredProviders?: readonly string[],
 ): string | undefined {
-	const { queryProvider, queryIdRaw } = splitQualifiedModelQuery(baseModel, availableModels);
+	const { queryProvider, queryIdRaw } = splitQualifiedModelQuery(baseModel, availableModels, registeredProviders);
 	const queryId = normalizeModelSegment(queryIdRaw);
 	const queryIdNoDate = stripTrailingDateStamp(queryId);
 
@@ -212,16 +223,17 @@ export function resolveModelCandidate(
 	model: string | undefined,
 	availableModels: AvailableModelInfo[] | undefined,
 	preferredProvider?: string,
+	registeredProviders?: readonly string[],
 ): string | undefined {
 	if (!model) return undefined;
 	if (!availableModels || availableModels.length === 0) return model;
 
-	const resolvedWhole = resolveBaseModelCandidate(model, availableModels, preferredProvider);
+	const resolvedWhole = resolveBaseModelCandidate(model, availableModels, preferredProvider, registeredProviders);
 	if (resolvedWhole) return resolvedWhole;
 
 	const { baseModel, thinkingSuffix } = splitThinkingSuffix(model);
 	if (!thinkingSuffix) return model;
-	const resolvedBase = resolveBaseModelCandidate(baseModel, availableModels, preferredProvider);
+	const resolvedBase = resolveBaseModelCandidate(baseModel, availableModels, preferredProvider, registeredProviders);
 	if (resolvedBase) return `${resolvedBase}${thinkingSuffix}`;
 	return model;
 }
@@ -230,24 +242,30 @@ function resolveSubagentModelCandidate(
 	model: string,
 	availableModels: AvailableModelInfo[] | undefined,
 	preferredProvider?: string,
+	registeredProviders?: readonly string[],
 ): string | undefined {
-	if (!availableModels || availableModels.length === 0) return model;
-	const resolvedWhole = resolveBaseModelCandidate(model, availableModels, preferredProvider);
+	if (!availableModels) return model;
+	if (availableModels.length === 0) {
+		const { baseModel } = splitThinkingSuffix(model);
+		return splitQualifiedModelQuery(baseModel, availableModels, registeredProviders).queryProvider === undefined ? model : undefined;
+	}
+	const resolvedWhole = resolveBaseModelCandidate(model, availableModels, preferredProvider, registeredProviders);
 	if (resolvedWhole) return resolvedWhole;
 	const { baseModel, thinkingSuffix } = splitThinkingSuffix(model);
-	const resolvedBase = thinkingSuffix ? resolveBaseModelCandidate(baseModel, availableModels, preferredProvider) : undefined;
+	const resolvedBase = thinkingSuffix ? resolveBaseModelCandidate(baseModel, availableModels, preferredProvider, registeredProviders) : undefined;
 	return resolvedBase ? `${resolvedBase}${thinkingSuffix}` : undefined;
 }
 
 function suggestAlternateProviderModel(
 	model: string,
 	availableModels: AvailableModelInfo[] | undefined,
+	registeredProviders?: readonly string[],
 ): string | undefined {
 	if (!availableModels || availableModels.length === 0) return undefined;
 	const { baseModel, thinkingSuffix } = splitThinkingSuffix(model);
-	const { queryProvider, queryIdRaw } = splitQualifiedModelQuery(baseModel, availableModels);
+	const { queryProvider, queryIdRaw } = splitQualifiedModelQuery(baseModel, availableModels, registeredProviders);
 	if (queryProvider === undefined) return undefined;
-	const suggestion = resolveBaseModelCandidate(queryIdRaw, availableModels);
+	const suggestion = resolveBaseModelCandidate(queryIdRaw, availableModels, undefined, registeredProviders);
 	if (!suggestion) return undefined;
 	const matched = availableModels.find((entry) => entry.fullId === suggestion);
 	if (!matched || normalizeModelSegment(matched.provider) === queryProvider) return undefined;
@@ -258,16 +276,19 @@ function resolveRequiredSubagentModelCandidate(
 	model: string,
 	availableModels: AvailableModelInfo[] | undefined,
 	preferredProvider?: string,
+	registeredProviders?: readonly string[],
 ): string {
-	const resolved = resolveSubagentModelCandidate(model, availableModels, preferredProvider);
+	const resolved = resolveSubagentModelCandidate(model, availableModels, preferredProvider, registeredProviders);
 	if (resolved) return resolved;
-	const suggestion = suggestAlternateProviderModel(model, availableModels);
+	const suggestion = suggestAlternateProviderModel(model, availableModels, registeredProviders);
 	throw new Error(
 		`Unknown subagent model '${model}' in the active Pi model registry.${suggestion ? ` Did you mean '${suggestion}'?` : ""}`,
 	);
 }
 
 export interface ResolveSubagentModelOverrideOptions {
+	/** Provider names from the full registry, not its auth-filtered available snapshot. */
+	registeredProviders?: readonly string[];
 	/** When set with `enforce: true`, out-of-scope models are rejected. */
 	scope?: ModelScopeCheckRule | ModelScopeCheckRule[];
 	/** Origin of the requested model: explicit caller-supplied (hard error) vs inherited (warn). Defaults to `"inherited"`. */
@@ -342,9 +363,9 @@ export function resolveSubagentModelOverride(
 	if (explicit === undefined) {
 		resolved = parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined;
 	} else {
-		const candidate = resolveSubagentModelCandidate(explicit, availableModels, preferredProvider);
+		const candidate = resolveSubagentModelCandidate(explicit, availableModels, preferredProvider, options?.registeredProviders);
 		if (options?.source === "explicit") {
-			resolved = candidate ?? resolveRequiredSubagentModelCandidate(explicit, availableModels, preferredProvider);
+			resolved = candidate ?? resolveRequiredSubagentModelCandidate(explicit, availableModels, preferredProvider, options?.registeredProviders);
 			resolvedFromRegistry = true;
 		} else if (candidate) {
 			resolved = candidate;
@@ -389,6 +410,8 @@ export function resolveEffectiveSubagentModel(
 export type ModelOrigin = ModelSource | "configured";
 
 export interface ResolveModelSelectionOptions {
+	/** Provider names from the full registry, not its auth-filtered available snapshot. */
+	registeredProviders?: readonly string[];
 	scope?: ModelScopeCheckRule | ModelScopeCheckRule[];
 	onWarn?: (violation: ModelScopeViolation) => void;
 	/** The primary model came from the running parent session, not configuration. */
@@ -432,13 +455,13 @@ export function resolveModelSelection(
 	const requestedModel = origin === "inherited" ? undefined : model;
 	const scopes = configuredScopes(options?.scope);
 	if (origin === "explicit" && model) {
-		const normalized = resolveRequiredSubagentModelCandidate(model.trim(), availableModels, preferredProvider);
+		const normalized = resolveRequiredSubagentModelCandidate(model.trim(), availableModels, preferredProvider, options?.registeredProviders);
 		enforceModelScopes(normalized, scopes, "explicit", options?.onWarn);
 		model = normalized;
 	}
 	const resolved = model && (origin === "inherited" || origin === "explicit" || options?.primaryModelFromParent)
 		? model.trim()
-		: model ? resolveRequiredSubagentModelCandidate(model.trim(), availableModels, preferredProvider) : undefined;
+		: model ? resolveRequiredSubagentModelCandidate(model.trim(), availableModels, preferredProvider, options?.registeredProviders) : undefined;
 	if (resolved && scopes.some((scope) => scope.enforce === true && scope.strict === true)) {
 		enforceModelScopes(resolved, scopes, "inherited", options?.onWarn);
 	}

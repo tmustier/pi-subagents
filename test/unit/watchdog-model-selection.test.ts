@@ -14,6 +14,7 @@ function createCtx(
 		cwd: "/tmp/watchdog-model-selection",
 		model: current,
 		modelRegistry: {
+			getAll() { return this.getAvailable(); },
 			getAvailable: () => models,
 			find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
 			hasConfiguredAuth: (model: { provider: string; id: string }) => authenticated.includes(`${model.provider}/${model.id}`),
@@ -52,6 +53,7 @@ describe("watchdog model selection", () => {
 			cwd: "/tmp/watchdog-model-selection",
 			model: { provider: "anthropic", id: "claude-opus-4-8" },
 			modelRegistry: {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => models,
 				find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
 				hasConfiguredAuth: (model: { provider: string; id: string }) => `${model.provider}/${model.id}` === "openai-codex/gpt-5.5-mini" || `${model.provider}/${model.id}` === "openai-codex/gpt-5.5-20250101-mini",
@@ -70,6 +72,7 @@ describe("watchdog model selection", () => {
 			cwd: "/tmp/watchdog-model-selection",
 			model: { provider: "openai-codex", id: "gpt-5.5" },
 			modelRegistry: {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => models,
 				find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
 				hasConfiguredAuth: (model: { provider: string; id: string }) => `${model.provider}/${model.id}` === "anthropic/claude-opus-4-8-20250101-mini",
@@ -91,6 +94,7 @@ describe("watchdog model selection", () => {
 			cwd: "/tmp/watchdog-model-selection",
 			model: { provider: "anthropic", id: "claude-opus-4-8" },
 			modelRegistry: {
+				getAll() { return this.getAvailable(); },
 				getAvailable: () => models,
 				find: (provider: string, id: string) => models.find((model) => model.provider === provider && model.id === id),
 				hasConfiguredAuth: (model: { provider: string; id: string }) => `${model.provider}/${model.id}` === "openai-codex/cheap-gpt-5.5" || `${model.provider}/${model.id}` === "anthropic/cheap-claude-opus-4-8",

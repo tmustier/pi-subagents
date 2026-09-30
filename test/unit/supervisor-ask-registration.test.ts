@@ -113,7 +113,7 @@ function hookRuntime(launch: ChildSessionLaunch, platform: NodeJS.Platform, sign
 	}> };
 	const owner = randomUUID();
 	const sessionFile = path.join(launch.cwd, `${owner}.jsonl`);
-	const ctx = { ...makeCtx(owner, sessionFile), cwd: launch.cwd, ui: {}, modelRegistry: { getAvailable: () => [] } };
+	const ctx = { ...makeCtx(owner, sessionFile), cwd: launch.cwd, ui: {}, modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [] } };
 	const registered = new Map<string, Tool>();
 	const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
 	const subscribers = new Set<(event: ChildSessionEvent) => void>();
@@ -761,7 +761,7 @@ describe("supervisor ask registration", () => {
 						getSessionId() { if (stale) throw new Error("stale session manager"); return owner; },
 						getSessionFile() { return sessionFile; }, getEntries() { return []; },
 					},
-					modelRegistry: { getAvailable() { return []; } },
+					modelRegistry: { getAll() { return []; }, getAvailable() { return []; } },
 				};
 				registerExtension(pi);
 				for (const handler of handlers.get("session_start") ?? []) await handler({ reason: "startup" }, ctx);

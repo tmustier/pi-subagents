@@ -6,6 +6,7 @@ import {
 	isContextOverflow,
 	normalizeModelSegment,
 	normalizeParentModel,
+	registeredProvidersFromRegistry,
 	resolveEffectiveSubagentModel,
 	resolveModelCandidate,
 	resolveModelSelection,
@@ -28,6 +29,52 @@ describe("single model resolution", () => {
 			requestedModel: "gpt-5-mini",
 		});
 		assert.equal(resolveModelCandidate("gpt-5-mini:high", models), "openai/gpt-5-mini:high");
+	});
+
+	it("keeps unavailable provider prefixes out of raw-id collisions, including thinking suffixes", () => {
+		const available = [{ provider: "openrouter", id: "openai/gpt-6.1-sol", fullId: "openrouter/openai/gpt-6.1-sol" }];
+		const registeredProviders = registeredProvidersFromRegistry({ getAll: () => [
+			...available, { provider: "openai", id: "gpt-6.1-sol" }, { provider: "openai", id: "other" },
+		] });
+		assert.deepEqual(registeredProviders, ["openrouter", "openai"]);
+		for (const requested of ["openai/gpt-6.1-sol", "openai/gpt-6.1-sol:high", "OpenAI/GPT_6-1-SOL:high"]) {
+			assert.equal(resolveModelCandidate(requested, available, "openai", registeredProviders), requested);
+			assert.equal(fuzzyResolveModel(requested.split(":")[0]!, available, "openrouter", registeredProviders), undefined);
+			assert.throws(() => resolveEffectiveSubagentModel(requested, undefined, undefined, available, "openrouter", {
+				source: "explicit", registeredProviders,
+			}), /Unknown subagent model/);
+			assert.throws(() => resolveModelSelection(requested, available, "openrouter", { registeredProviders }), /Unknown subagent model/);
+			assert.throws(() => resolveModelSelection(requested, available, "openrouter", { registeredProviders, origin: "explicit" }), /Unknown subagent model/);
+		}
+		assert.throws(() => resolveModelSelection("openai/gpt-6.1-sol:high", [], undefined, { registeredProviders }), /Unknown subagent model/);
+	});
+
+	it("recognizes unavailable provider aliases without cross-provider fuzzy matching", () => {
+		const available = [
+			{ provider: "gateway", id: "openai:gpt-6.1-sol", fullId: "gateway/openai:gpt-6.1-sol" },
+			{ provider: "gateway", id: "openai.gpt-6.1-sol", fullId: "gateway/openai.gpt-6.1-sol" },
+		];
+		for (const query of ["openai:gpt-6.1-sol", "openai.gpt-6.1-sol"]) {
+			assert.throws(() => resolveModelSelection(query, available, "gateway", { registeredProviders: ["openai", "gateway"] }), /Unknown subagent model/);
+		}
+	});
+
+	it("preserves genuine owner/name ids and available custom providers from the full registry", () => {
+		const available = [
+			{ provider: "huggingface", id: "thinkingmachines/Inkling", fullId: "huggingface/thinkingmachines/Inkling" },
+			{ provider: "private-gpu", id: "org/model", fullId: "private-gpu/org/model" },
+		];
+		const registeredProviders = ["openai", "huggingface", "private-gpu"];
+		assert.equal(resolveModelSelection("thinkingmachines/Inkling:high", available, undefined, { registeredProviders }).model, "huggingface/thinkingmachines/Inkling:high");
+		assert.equal(resolveModelSelection("ThinkingMachines/INKLING", available, undefined, { registeredProviders }).model, "huggingface/thinkingmachines/Inkling");
+		assert.equal(resolveModelSelection("Private_GPU/Org/Model:high", available, "huggingface", { registeredProviders }).model, "private-gpu/org/model:high");
+	});
+
+	it("keeps unavailable custom providers qualified even when their prefix is another provider's raw id", () => {
+		const available = [{ provider: "gateway", id: "private-gpu/org/model", fullId: "gateway/private-gpu/org/model" }];
+		assert.throws(() => resolveModelSelection("private-gpu/org/model:high", available, "gateway", {
+			registeredProviders: ["private-gpu", "gateway"],
+		}), /Unknown subagent model/);
 	});
 
 	it("inherits the current parent model for omitted, false, empty, and inherit values", () => {
