@@ -106,6 +106,7 @@ interface MinimalCtx {
 	};
 	modelRegistry: {
 		getAvailable: () => Array<{ provider: string; id: string }>;
+		getAll: () => Array<{ provider: string; id: string }>;
 	};
 	model?: { provider: string; id?: string };
 }
@@ -121,6 +122,7 @@ export function makeMinimalCtx(cwd: string): MinimalCtx {
 		},
 		modelRegistry: {
 			getAvailable: () => [],
+			getAll: () => [],
 		},
 	};
 }

@@ -184,7 +184,9 @@ You do not have to spell a model exactly. Model ids are matched fuzzily against 
 
 Exact `provider/id` matches still win, and a qualified provider query never silently switches providers — it only matches within the named provider. Ambiguous bare ids that exist under multiple providers still require a provider prefix or the current session's provider to disambiguate.
 
-Registry ids that themselves contain `/` (Hugging Face `owner/name`) resolve the same way as Pi's main agent: `thinkingmachines/Inkling` becomes `huggingface/thinkingmachines/Inkling` when that id is unique or offered by the current session provider. A first path segment that matches a registered provider still means `provider/id`.
+Registry ids that themselves contain `/` (Hugging Face `owner/name`) resolve the same way as Pi's main agent: `thinkingmachines/Inkling` becomes `huggingface/thinkingmachines/Inkling` when that id is unique or offered by the current session provider. A first path segment that matches a provider in the full Pi model registry still means `provider/id`, even when authentication filtering leaves no available models from that provider. This includes custom providers; an unavailable qualified model fails rather than resolving another provider's raw id.
+
+Standalone `resolveSubagentLaunchContract` callers should supply `registeredProviders` from `ctx.modelRegistry.getAll()` alongside `availableModels` from `getAvailable()`. Without the full provider snapshot, preflight only recognizes providers present in `availableModels` and reports a host-required diagnostic; it cannot distinguish an absent provider prefix from a genuine `owner/name` id.
 
 ## Model scope enforcement
 

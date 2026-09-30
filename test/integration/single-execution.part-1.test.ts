@@ -2366,7 +2366,7 @@ Answer only from the supplied synthetic text.
 			undefined,
 			{
 				...makeMinimalCtx(tempDir),
-				modelRegistry: { getAvailable: () => [{ provider: "other", id: "known" }] },
+				modelRegistry: { getAll() { return this.getAvailable(); }, getAvailable: () => [{ provider: "other", id: "known" }] },
 			},
 		);
 

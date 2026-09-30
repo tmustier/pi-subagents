@@ -1750,6 +1750,7 @@ async function runSyncCompletionInner(
 		options.availableModels,
 		agent.modelProvider ?? options.preferredModelProvider,
 		{
+			registeredProviders: options.registeredProviders,
 			scope: options.modelScope,
 			primaryModelFromParent: options.modelOverrideFromParent,
 			origin: options.modelOrigin ?? (options.modelOverrideFromParent ? "inherited" : "configured"),
